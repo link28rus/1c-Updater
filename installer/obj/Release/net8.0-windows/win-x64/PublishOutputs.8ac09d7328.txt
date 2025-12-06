@@ -1,0 +1,2 @@
+D:\Project\1С-Updater\installer\bin\Release\net8.0-windows\win-x64\publish\1CUpdaterAgentInstaller.pdb
+D:\Project\1С-Updater\installer\bin\Release\net8.0-windows\win-x64\publish\1CUpdaterAgentInstaller.exe

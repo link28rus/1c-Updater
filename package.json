@@ -1,0 +1,25 @@
+{
+  "name": "1c-updater",
+  "version": "1.0.0",
+  "description": "Система удаленного обновления 1С",
+  "scripts": {
+    "install:all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "start:backend": "cd backend && npm run start:dev",
+    "start:frontend": "cd frontend && npm run dev",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "build:agent": "cd agent && dotnet build -c Release"
+  },
+  "keywords": [
+    "1c",
+    "updater",
+    "remote",
+    "management"
+  ],
+  "author": "",
+  "license": "UNLICENSED"
+}
+
+
+
+

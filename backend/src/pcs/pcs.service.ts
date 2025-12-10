@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PC } from './entities/pc.entity';
 import { CreatePcDto } from './dto/create-pc.dto';
 import { UpdatePcDto } from './dto/update-pc.dto';
 import { ConfigService } from '@nestjs/config';
+import { EventsGateway } from '../common/gateways/events.gateway';
 
 @Injectable()
 export class PcsService {
@@ -14,6 +15,8 @@ export class PcsService {
     @InjectRepository(PC)
     private pcsRepository: Repository<PC>,
     private configService: ConfigService,
+    @Inject(forwardRef(() => EventsGateway))
+    private eventsGateway: EventsGateway,
   ) {
     this.encryptionSecret = this.configService.get<string>('ENCRYPTION_SECRET') || 'default-secret';
   }
@@ -108,6 +111,11 @@ export class PcsService {
       
       await this.pcsRepository.save(pc);
       console.log(`[PcsService] Статус ПК обновлен: PcId=${pcId}, isOnline=${isOnline}, version=${pc.lastOneCVersion || 'null'}, arch=${pc.oneCArchitecture || 'null'}`);
+      
+      // Отправляем событие об изменении статуса ПК
+      if (this.eventsGateway) {
+        this.eventsGateway.pcStatusChanged(pcId, isOnline);
+      }
     }
   }
 

@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Task, TaskPC, TaskStatus, TaskPcStatus } from './entities/task.entity';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { DistributionsService } from '../distributions/distributions.service';
 import { PcsService } from '../pcs/pcs.service';
+import { EventsGateway } from '../common/gateways/events.gateway';
 
 @Injectable()
 export class TasksService {
@@ -15,6 +16,8 @@ export class TasksService {
     private taskPcRepository: Repository<TaskPC>,
     private distributionsService: DistributionsService,
     private pcsService: PcsService,
+    @Inject(forwardRef(() => EventsGateway))
+    private eventsGateway: EventsGateway,
   ) {}
 
   async create(createTaskDto: CreateTaskDto): Promise<Task> {
@@ -81,6 +84,12 @@ export class TasksService {
       try {
         const result = await this.findOne(savedTask.id);
         console.log('[TasksService] Задача создана успешно:', result.id);
+        
+        // Отправляем событие о создании задачи
+        if (this.eventsGateway) {
+          this.eventsGateway.taskCreated(result);
+        }
+        
         return result;
       } catch (findError) {
         console.error('[TasksService] Ошибка при загрузке задачи с relations:', findError);
@@ -158,6 +167,11 @@ export class TasksService {
 
     // Обновляем статус задачи
     await this.updateTaskStatus(taskId);
+    
+    // Отправляем событие об изменении статуса задачи для ПК
+    if (this.eventsGateway) {
+      this.eventsGateway.taskPcStatusChanged(taskId, pcId, status);
+    }
   }
 
   private async updateTaskStatus(taskId: number): Promise<void> {
@@ -179,6 +193,8 @@ export class TasksService {
     const task = await this.tasksRepository.findOne({ where: { id: taskId } });
     if (!task) return;
 
+    const oldStatus = task.status;
+
     if (allCompleted) {
       const hasFailed = taskPcs.some(
         (tp) => tp.status === TaskPcStatus.FAILED,
@@ -189,6 +205,16 @@ export class TasksService {
     }
 
     await this.tasksRepository.save(task);
+
+    // Отправляем событие об обновлении задачи, если статус изменился
+    if (this.eventsGateway && oldStatus !== task.status) {
+      try {
+        const updatedTask = await this.findOne(taskId);
+        this.eventsGateway.taskUpdated(updatedTask);
+      } catch (error) {
+        // Игнорируем ошибки отправки событий
+      }
+    }
   }
 
   async getPendingTasksForPc(pcId: number): Promise<Task[]> {

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AgentRegistration } from './entities/agent-registration.entity';
@@ -8,6 +8,7 @@ import { PcsService } from '../pcs/pcs.service';
 import { TasksService } from '../tasks/tasks.service';
 import { TaskPcStatus } from '../tasks/entities/task.entity';
 import { ConfigService } from '@nestjs/config';
+import { EventsGateway } from '../common/gateways/events.gateway';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -19,6 +20,8 @@ export class AgentService {
     private pcsService: PcsService,
     private tasksService: TasksService,
     private configService: ConfigService,
+    @Inject(forwardRef(() => EventsGateway))
+    private eventsGateway: EventsGateway,
   ) {}
 
   async register(registerAgentDto: RegisterAgentDto): Promise<AgentRegistration> {
@@ -71,6 +74,11 @@ export class AgentService {
       registerAgentDto.oneCArchitecture,
     );
     console.log(`[AgentService] Статус ПК обновлен`);
+
+    // Отправляем событие о регистрации агента
+    if (this.eventsGateway) {
+      this.eventsGateway.agentRegistered(savedAgent);
+    }
 
     return savedAgent;
   }

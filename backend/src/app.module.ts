@@ -9,6 +9,8 @@ import { GroupsModule } from './groups/groups.module';
 import { DistributionsModule } from './distributions/distributions.module';
 import { TasksModule } from './tasks/tasks.module';
 import { AgentModule } from './agent/agent.module';
+import { EventsModule } from './common/gateways/events.module';
+import { ReportsModule } from './reports/reports.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
@@ -35,6 +37,8 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     DistributionsModule,
     TasksModule,
     AgentModule,
+    EventsModule,
+    ReportsModule,
   ],
   providers: [
     {

@@ -7,6 +7,7 @@ import { DistributionsPage } from './pages/DistributionsPage'
 import { TasksPage } from './pages/TasksPage'
 import { AdminUsersPage } from './pages/AdminUsersPage'
 import { AgentsPage } from './pages/AgentsPage'
+import { ReportsPage } from './pages/ReportsPage'
 import { Layout } from './components/Layout'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 
@@ -48,6 +49,7 @@ function AppRoutes() {
         <Route path="distributions" element={<DistributionsPage />} />
         <Route path="tasks" element={<TasksPage />} />
         <Route path="agents" element={<AgentsPage />} />
+        <Route path="reports" element={<ReportsPage />} />
         <Route path="admin/users" element={<AdminUsersPage />} />
       </Route>
     </Routes>

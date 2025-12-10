@@ -23,7 +23,7 @@ CREATE DATABASE 1c_updater;
 
 ## 3. Настройка Backend
 
-1. Создайте файл `backend/.env`:
+1. Создайте файл `backend/.env` (см. `backend/.env.example` для примера):
 ```env
 DB_HOST=localhost
 DB_PORT=5432
@@ -38,7 +38,13 @@ UPLOAD_DIR=./uploads/distributions
 ENCRYPTION_SECRET=your-encryption-secret
 ```
 
-2. Запустите backend:
+2. Примените миграции базы данных:
+```bash
+cd backend
+npm run migration:run
+```
+
+3. Запустите backend:
 ```bash
 npm run start:backend
 ```
@@ -102,6 +108,8 @@ sc start "1CUpdaterAgent"
 - `npm run build:backend` - сборка backend для production
 - `npm run build:frontend` - сборка frontend для production
 - `npm run build:agent` - сборка агента
+- `cd backend && npm run migration:run` - применить миграции БД
+- `cd backend && npm run migration:revert` - откатить последнюю миграцию
 
 
 

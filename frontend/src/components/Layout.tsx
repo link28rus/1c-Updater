@@ -22,6 +22,7 @@ import {
   People as PeopleIcon,
   Logout as LogoutIcon,
   SettingsRemote as SettingsRemoteIcon,
+  Assessment as AssessmentIcon,
 } from '@mui/icons-material'
 import { useAuth } from '../contexts/AuthContext'
 
@@ -34,6 +35,7 @@ const menuItems = [
   { text: 'Дистрибутивы', icon: <CloudUploadIcon />, path: '/distributions' },
   { text: 'Задачи', icon: <AssignmentIcon />, path: '/tasks' },
   { text: 'Агенты', icon: <SettingsRemoteIcon />, path: '/agents' },
+  { text: 'Отчеты', icon: <AssessmentIcon />, path: '/reports' },
   { text: 'Пользователи', icon: <PeopleIcon />, path: '/admin/users' },
 ]
 

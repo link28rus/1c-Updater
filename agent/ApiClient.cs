@@ -309,19 +309,102 @@ namespace OneCUpdaterAgent
 
         public async Task<byte[]> DownloadDistributionAsync(int distributionId)
         {
+            // Для обратной совместимости оставляем старый метод
+            // Используйте DownloadDistributionToFileAsync для потоковой загрузки
+            var tempFile = Path.Combine(Path.GetTempPath(), $"dist_{distributionId}_{Guid.NewGuid()}.zip");
             try
             {
-                var response = await _httpClient.GetAsync($"/api/distributions/{distributionId}/download");
-                if (response.IsSuccessStatusCode)
+                await DownloadDistributionToFileAsync(distributionId, tempFile);
+                return await File.ReadAllBytesAsync(tempFile);
+            }
+            finally
+            {
+                // Очищаем временный файл
+                try
                 {
-                    return await response.Content.ReadAsByteArrayAsync();
+                    if (File.Exists(tempFile))
+                    {
+                        File.Delete(tempFile);
+                    }
                 }
+                catch { }
+            }
+        }
+
+        /// <summary>
+        /// Потоковая загрузка дистрибутива в файл (для больших файлов)
+        /// </summary>
+        public async Task<bool> DownloadDistributionToFileAsync(int distributionId, string filePath)
+        {
+            try
+            {
+                _logger?.LogInformation($"Начало потоковой загрузки дистрибутива {distributionId} в {filePath}");
+                
+                var response = await _httpClient.GetAsync($"/api/distributions/{distributionId}/download", HttpCompletionOption.ResponseHeadersRead);
+                
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger?.LogError($"Ошибка загрузки дистрибутива: {response.StatusCode} {response.ReasonPhrase}");
+                    return false;
+                }
+
+                // Создаем директорию если не существует
+                var directory = Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                // Потоковая загрузка в файл
+                using (var contentStream = await response.Content.ReadAsStreamAsync())
+                using (var fileStream = new FileStream(filePath, FileMode.Create, FileAccess.Write, FileShare.None, 8192, true))
+                {
+                    var totalBytes = response.Content.Headers.ContentLength ?? 0;
+                    var buffer = new byte[8192];
+                    var bytesRead = 0;
+                    var totalBytesRead = 0L;
+
+                    while ((bytesRead = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                    {
+                        await fileStream.WriteAsync(buffer, 0, bytesRead);
+                        totalBytesRead += bytesRead;
+
+                        // Логируем прогресс каждые 10MB
+                        if (totalBytesRead % (10 * 1024 * 1024) < 8192)
+                        {
+                            if (totalBytes > 0)
+                            {
+                                var progress = (int)((totalBytesRead * 100) / totalBytes);
+                                _logger?.LogInformation($"Загрузка дистрибутива: {progress}% ({totalBytesRead / 1024 / 1024}MB / {totalBytes / 1024 / 1024}MB)");
+                            }
+                            else
+                            {
+                                _logger?.LogInformation($"Загрузка дистрибутива: {totalBytesRead / 1024 / 1024}MB");
+                            }
+                        }
+                    }
+                }
+
+                var fileInfo = new FileInfo(filePath);
+                _logger?.LogInformation($"✅ Дистрибутив успешно загружен: {filePath}, размер: {fileInfo.Length / 1024 / 1024}MB");
+                return true;
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, "Ошибка загрузки дистрибутива");
+                _logger?.LogError(ex, $"Ошибка потоковой загрузки дистрибутива: {ex.Message}");
+                
+                // Удаляем частично загруженный файл
+                try
+                {
+                    if (File.Exists(filePath))
+                    {
+                        File.Delete(filePath);
+                    }
+                }
+                catch { }
+                
+                return false;
             }
-            return Array.Empty<byte>();
         }
     }
 

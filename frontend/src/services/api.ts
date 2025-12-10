@@ -125,6 +125,22 @@ export const agentsService = {
   deleteAgent: (agentId: string) => apiClient.delete(`/agent/${agentId}`),
 }
 
+export const reportsService = {
+  getDashboardStats: () => apiClient.get('/reports/dashboard'),
+  getTaskStatistics: (startDate?: string, endDate?: string) => {
+    const params: any = {};
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
+    return apiClient.get('/reports/tasks', { params });
+  },
+  getPcStatistics: () => apiClient.get('/reports/pcs'),
+  getTaskHistory: (limit?: number) => {
+    const params = limit ? { limit } : {};
+    return apiClient.get('/reports/tasks/history', { params });
+  },
+  getDistributionStatistics: () => apiClient.get('/reports/distributions'),
+}
+
 export default apiClient
 
 

@@ -43,12 +43,19 @@ UPLOAD_DIR=./uploads/distributions
 CREATE DATABASE 1c_updater;
 ```
 
-5. Запустите сервер:
+5. Примените миграции базы данных:
+```bash
+npm run migration:run
+```
+
+Это создаст все необходимые таблицы в базе данных.
+
+6. Запустите сервер:
 ```bash
 npm run start:dev
 ```
 
-База данных будет создана автоматически при первом запуске (в режиме development).
+**Важно:** В production режиме `synchronize` отключен, поэтому всегда используйте миграции для изменения схемы БД. Подробнее см. `backend/MIGRATIONS.md`.
 
 ## Установка Frontend
 

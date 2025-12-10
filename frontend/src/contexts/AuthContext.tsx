@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { authService } from '../services/api'
+import { webSocketService } from '../services/websocket'
 
 interface User {
   id: number
@@ -51,6 +52,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('token', response.access_token)
     localStorage.setItem('user', JSON.stringify(response.user))
     authService.setToken(response.access_token)
+    
+    // Подключаемся к WebSocket
+    webSocketService.connect(response.access_token)
   }
 
   const logout = () => {
@@ -59,7 +63,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('token')
     localStorage.removeItem('user')
     authService.setToken(null)
+    
+    // Отключаемся от WebSocket
+    webSocketService.disconnect()
   }
+
+  // Подключаемся к WebSocket при загрузке, если есть токен
+  useEffect(() => {
+    const storedToken = localStorage.getItem('token')
+    if (storedToken && !webSocketService.isConnected()) {
+      webSocketService.connect(storedToken)
+    }
+    
+    return () => {
+      webSocketService.disconnect()
+    }
+  }, [])
 
   return (
     <AuthContext.Provider

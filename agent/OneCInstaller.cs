@@ -27,64 +27,58 @@ namespace OneCUpdaterAgent
             {
                 _logger?.LogInformation($"Начало установки дистрибутива {filename} для задачи {taskId}");
 
-                // Загружаем дистрибутив (это ZIP архив с распакованным дистрибутивом)
-                byte[]? distributionData = null;
+                // Загружаем дистрибутив потоковым способом (это ZIP архив с распакованным дистрибутивом)
                 string? extractTo = null;
-                try
+                
+                // Создаем временную директорию для распаковки
+                var tempDir = Path.Combine(Path.GetTempPath(), "1CUpdaterAgent", Guid.NewGuid().ToString());
+                if (!Directory.Exists(tempDir))
                 {
-                    distributionData = await _apiClient.DownloadDistributionAsync(distributionId);
-                    if (distributionData == null || distributionData.Length == 0)
-                    {
-                        await _apiClient.ReportTaskProgressAsync(
-                            _config.AgentId,
-                            taskId,
-                            "failed",
-                            "Не удалось загрузить дистрибутив"
-                        );
-                        _logger?.LogError("Не удалось загрузить дистрибутив");
-                        return false;
-                    }
+                    Directory.CreateDirectory(tempDir);
+                }
+                extractPath = tempDir;
 
-                    _logger?.LogInformation($"Дистрибутив загружен, размер: {distributionData.Length} байт");
+                // Загружаем ZIP архив напрямую в файл (потоковая загрузка)
+                var zipPath = Path.Combine(tempDir, $"{distributionId}.zip");
+                var downloadSuccess = await _apiClient.DownloadDistributionToFileAsync(distributionId, zipPath);
+                
+                if (!downloadSuccess || !File.Exists(zipPath))
+                {
+                    await _apiClient.ReportTaskProgressAsync(
+                        _config.AgentId,
+                        taskId,
+                        "failed",
+                        "Не удалось загрузить дистрибутив"
+                    );
+                    _logger?.LogError("Не удалось загрузить дистрибутив");
+                    return false;
+                }
 
-                    // Создаем временную директорию для распаковки
-                    var tempDir = Path.Combine(Path.GetTempPath(), "1CUpdaterAgent", Guid.NewGuid().ToString());
-                    if (!Directory.Exists(tempDir))
-                    {
-                        Directory.CreateDirectory(tempDir);
-                    }
-                    extractPath = tempDir;
+                var fileInfo = new FileInfo(zipPath);
+                _logger?.LogInformation($"Архив загружен, размер: {fileInfo.Length / 1024 / 1024}MB");
 
-                    // Сохраняем ZIP архив
-                    var zipPath = Path.Combine(tempDir, $"{distributionId}.zip");
-                    await File.WriteAllBytesAsync(zipPath, distributionData);
-                    _logger?.LogInformation($"ZIP архив сохранен: {zipPath}");
-
-                    // Явно освобождаем память после записи файла
-                    distributionData = null;
-                    GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true);
-                    GC.WaitForPendingFinalizers();
-                    GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true);
-
-                    // Распаковываем ZIP архив
-                    extractTo = Path.Combine(tempDir, "extracted");
-                    Directory.CreateDirectory(extractTo);
-                    
+                // Определяем тип архива и распаковываем
+                extractTo = Path.Combine(tempDir, "extracted");
+                Directory.CreateDirectory(extractTo);
+                
+                var extension = Path.GetExtension(zipPath).ToLower();
+                if (extension == ".zip")
+                {
                     ZipFile.ExtractToDirectory(zipPath, extractTo);
                     _logger?.LogInformation($"ZIP архив распакован в: {extractTo}");
-
-                    // Удаляем ZIP файл
-                    File.Delete(zipPath);
                 }
-                finally
+                else if (extension == ".rar")
                 {
-                    // Гарантируем освобождение памяти
-                    if (distributionData != null)
-                    {
-                        distributionData = null;
-                        GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true);
-                    }
+                    await ExtractRarArchiveAsync(zipPath, extractTo);
+                    _logger?.LogInformation($"RAR архив распакован в: {extractTo}");
                 }
+                else
+                {
+                    throw new NotSupportedException($"Неподдерживаемый формат архива: {extension}");
+                }
+
+                // Удаляем архивный файл
+                File.Delete(zipPath);
 
                 // Ищем установочный файл (setup.exe, *.msi, или первый .exe)
                 if (string.IsNullOrEmpty(extractTo))
@@ -141,9 +135,42 @@ namespace OneCUpdaterAgent
                 {
                     if (process != null)
                     {
-                        await process.WaitForExitAsync();
+                        // Таймаут установки: 30 минут (для больших дистрибутивов)
+                        var timeout = TimeSpan.FromMinutes(30);
+                        var cancellationTokenSource = new CancellationTokenSource(timeout);
                         
-                        _logger?.LogInformation($"Установка завершена с кодом: {process.ExitCode}");
+                        try
+                        {
+                            await process.WaitForExitAsync(cancellationTokenSource.Token);
+                            
+                            _logger?.LogInformation($"Установка завершена с кодом: {process.ExitCode}");
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            _logger?.LogError($"Таймаут установки: процесс не завершился за {timeout.TotalMinutes} минут");
+                            
+                            // Пытаемся завершить процесс
+                            try
+                            {
+                                if (!process.HasExited)
+                                {
+                                    process.Kill();
+                                    _logger?.LogInformation("Процесс установки принудительно завершен");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger?.LogWarning(ex, "Не удалось завершить зависший процесс установки");
+                            }
+                            
+                            await _apiClient.ReportTaskProgressAsync(
+                                _config.AgentId,
+                                taskId,
+                                "failed",
+                                $"Таймаут установки: процесс не завершился за {timeout.TotalMinutes} минут"
+                            );
+                            return false;
+                        }
 
                         if (process.ExitCode == 0 || process.ExitCode == 3010) // 3010 = успешная установка с перезагрузкой
                         {
@@ -282,6 +309,77 @@ namespace OneCUpdaterAgent
                 // Тихая установка EXE (для установщиков 1С)
                 return "/S";
             }
+        }
+
+        private async Task ExtractRarArchiveAsync(string rarPath, string extractTo)
+        {
+            // Пробуем использовать WinRAR или 7-Zip для распаковки RAR
+            var unrarCommands = new[]
+            {
+                // WinRAR в стандартных местах
+                $"\"C:\\Program Files\\WinRAR\\WinRAR.exe\" x -o+ -ibck \"{rarPath}\" \"{extractTo}\\\"",
+                $"\"C:\\Program Files (x86)\\WinRAR\\WinRAR.exe\" x -o+ -ibck \"{rarPath}\" \"{extractTo}\\\"",
+                // 7-Zip (может распаковывать RAR)
+                $"\"C:\\Program Files\\7-Zip\\7z.exe\" x -o\"{extractTo}\" \"{rarPath}\"",
+                $"\"C:\\Program Files (x86)\\7-Zip\\7z.exe\" x -o\"{extractTo}\" \"{rarPath}\"",
+            };
+
+            var timeout = TimeSpan.FromMinutes(10);
+            Exception? lastError = null;
+
+            foreach (var command in unrarCommands)
+            {
+                try
+                {
+                    _logger?.LogInformation($"Попытка распаковки RAR: {command}");
+                    
+                    var processInfo = new ProcessStartInfo
+                    {
+                        FileName = "cmd.exe",
+                        Arguments = $"/c {command}",
+                        UseShellExecute = false,
+                        CreateNoWindow = true,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                    };
+
+                    using (var process = Process.Start(processInfo))
+                    {
+                        if (process != null)
+                        {
+                            var cancellationTokenSource = new CancellationTokenSource(timeout);
+                            await process.WaitForExitAsync(cancellationTokenSource.Token);
+
+                            if (process.ExitCode == 0)
+                            {
+                                // Проверяем, что файлы были распакованы
+                                if (Directory.Exists(extractTo) && Directory.GetFiles(extractTo, "*", SearchOption.AllDirectories).Length > 0)
+                                {
+                                    _logger?.LogInformation($"RAR успешно распакован в {extractTo}");
+                                    return;
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger?.LogWarning($"Таймаут распаковки RAR: {command}");
+                    lastError = new TimeoutException($"Таймаут распаковки RAR архива");
+                }
+                catch (Exception ex)
+                {
+                    _logger?.LogWarning(ex, $"Ошибка при распаковке RAR: {command}");
+                    lastError = ex;
+                    continue;
+                }
+            }
+
+            // Если все команды не сработали
+            throw new Exception(
+                $"Не удалось распаковать RAR архив. Установите WinRAR или 7-Zip. " +
+                $"Последняя ошибка: {lastError?.Message ?? "Unknown error"}"
+            );
         }
 
         private void CleanupTempDirectory(string directory)

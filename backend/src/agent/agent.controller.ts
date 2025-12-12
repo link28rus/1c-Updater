@@ -12,6 +12,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Response } from 'express';
+import * as path from 'path';
 import { AgentService } from './agent.service';
 import { RegisterAgentDto } from './dto/register-agent.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
@@ -135,15 +136,47 @@ export class AgentController {
   @Get('download-installer')
   @UseGuards(JwtAuthGuard)
   async downloadInstaller(@Res() res: Response) {
-    const installerPath = await this.agentService.getInstallerPath();
-    
-    if (!installerPath) {
-      throw new NotFoundException('Файл установщика не найден. Убедитесь, что проект собран.');
-    }
+    try {
+      console.log(`[AgentController] Начало скачивания установщика...`);
+      const installerPath = await this.agentService.getInstallerPath();
+      
+      if (!installerPath) {
+        console.error(`[AgentController] ❌ Путь к установщику не найден`);
+        throw new NotFoundException('Файл установщика не найден. Убедитесь, что проект собран.');
+      }
 
-    res.setHeader('Content-Type', 'application/octet-stream');
-    res.setHeader('Content-Disposition', 'attachment; filename="1CUpdaterAgentInstaller.exe"');
-    res.sendFile(installerPath);
+      // Извлекаем имя файла из полного пути
+      const fileName = path.basename(installerPath);
+      console.log(`[AgentController] Полный путь установщика: ${installerPath}`);
+      console.log(`[AgentController] Имя файла из basename: ${fileName}`);
+      
+      // Проверяем, что файл содержит версию
+      if (!fileName.includes('-v')) {
+        console.error(`[AgentController] ❌ КРИТИЧЕСКАЯ ОШИБКА: Файл не содержит версию в имени!`);
+        console.error(`[AgentController] Имя файла: ${fileName}`);
+        throw new Error('Установщик должен иметь версию в имени файла (формат: 1CUpdaterAgentInstaller-vX.Y.Z.exe)');
+      }
+      
+      // Всегда используем имя файла из пути (оно уже содержит версию)
+      const downloadFileName = fileName;
+      
+      console.log(`[AgentController] ✅ Имя файла для скачивания: ${downloadFileName}`);
+      console.log(`[AgentController] Файл содержит версию: ${fileName.includes('-v')}`);
+
+      res.setHeader('Content-Type', 'application/octet-stream');
+      // Используем RFC 5987 для корректной передачи имени файла с версией
+      const encodedFileName = encodeURIComponent(downloadFileName);
+      res.setHeader('Content-Disposition', `attachment; filename="${downloadFileName}"; filename*=UTF-8''${encodedFileName}`);
+      console.log(`[AgentController] ✅ Content-Disposition установлен: filename="${downloadFileName}"; filename*=UTF-8''${encodedFileName}`);
+      
+      res.sendFile(installerPath);
+    } catch (error) {
+      console.error(`[AgentController] ❌ Ошибка при скачивании установщика: ${error}`);
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new NotFoundException(`Ошибка при получении установщика: ${error.message}`);
+    }
   }
 
   @Delete(':agentId')

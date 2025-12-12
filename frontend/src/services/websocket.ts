@@ -6,7 +6,7 @@ class WebSocketService {
 
   constructor() {
     // Используем API URL из переменных окружения или дефолтный
-    this.apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+    this.apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
   }
 
   connect(token: string): void {

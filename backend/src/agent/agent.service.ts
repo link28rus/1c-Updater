@@ -29,6 +29,8 @@ export class AgentService {
       pcId: registerAgentDto.pcId,
       agentId: registerAgentDto.agentId,
       hostname: registerAgentDto.hostname,
+      lastOneCVersion: registerAgentDto.lastOneCVersion || 'null',
+      oneCArchitecture: registerAgentDto.oneCArchitecture || 'null',
     });
 
     // Проверяем существование ПК
@@ -38,15 +40,15 @@ export class AgentService {
     let agent = await this.agentRepository.findOne({
       where: { pcId: registerAgentDto.pcId },
     });
-    console.log(`[AgentService] Существующий агент:`, agent ? { id: agent.id, agentId: agent.agentId } : 'НЕ НАЙДЕН');
+    console.log(`[AgentService] Существующий агент:`, agent ? { id: agent.id, agentId: agent.agentId, lastOneCVersion: agent.lastOneCVersion || 'null' } : 'НЕ НАЙДЕН');
 
     if (agent) {
       // Обновляем существующую регистрацию
       agent.agentId = registerAgentDto.agentId;
       agent.hostname = registerAgentDto.hostname;
       agent.osVersion = registerAgentDto.osVersion;
-      agent.lastOneCVersion = registerAgentDto.lastOneCVersion;
-      agent.oneCArchitecture = registerAgentDto.oneCArchitecture;
+      agent.lastOneCVersion = registerAgentDto.lastOneCVersion || null;
+      agent.oneCArchitecture = registerAgentDto.oneCArchitecture || null;
       agent.isActive = true;
       agent.lastHeartbeat = new Date();
     } else {
@@ -56,24 +58,30 @@ export class AgentService {
         agentId: registerAgentDto.agentId,
         hostname: registerAgentDto.hostname,
         osVersion: registerAgentDto.osVersion,
-        lastOneCVersion: registerAgentDto.lastOneCVersion,
-        oneCArchitecture: registerAgentDto.oneCArchitecture,
+        lastOneCVersion: registerAgentDto.lastOneCVersion || null,
+        oneCArchitecture: registerAgentDto.oneCArchitecture || null,
         isActive: true,
         lastHeartbeat: new Date(),
       });
     }
 
     const savedAgent = await this.agentRepository.save(agent);
-    console.log(`[AgentService] Агент сохранен:`, { id: savedAgent.id, pcId: savedAgent.pcId, agentId: savedAgent.agentId });
+    console.log(`[AgentService] Агент сохранен:`, {
+      id: savedAgent.id,
+      pcId: savedAgent.pcId,
+      agentId: savedAgent.agentId,
+      lastOneCVersion: savedAgent.lastOneCVersion || 'null',
+      oneCArchitecture: savedAgent.oneCArchitecture || 'null',
+    });
 
-    // Обновляем статус ПК
+    // Обновляем статус ПК с версией 1С
     await this.pcsService.updateStatus(
       registerAgentDto.pcId,
       true,
-      registerAgentDto.lastOneCVersion,
-      registerAgentDto.oneCArchitecture,
+      savedAgent.lastOneCVersion || null,
+      savedAgent.oneCArchitecture || null,
     );
-    console.log(`[AgentService] Статус ПК обновлен`);
+    console.log(`[AgentService] Статус ПК обновлен: PcId=${registerAgentDto.pcId}, Version=${savedAgent.lastOneCVersion || 'null'}, Arch=${savedAgent.oneCArchitecture || 'null'}`);
 
     // Отправляем событие о регистрации агента
     if (this.eventsGateway) {
@@ -103,42 +111,74 @@ export class AgentService {
   }
 
   async updateStatus(agentId: string, updateStatusDto: UpdateStatusDto): Promise<void> {
-    console.log(`[AgentService] UpdateStatus вызван: agentId=${agentId}, version=${updateStatusDto.lastOneCVersion}, arch=${updateStatusDto.oneCArchitecture}`);
+    console.log(`[AgentService] UpdateStatus вызван: agentId=${agentId}`, {
+      lastOneCVersion: updateStatusDto.lastOneCVersion,
+      oneCArchitecture: updateStatusDto.oneCArchitecture,
+      updateStatusDto: JSON.stringify(updateStatusDto),
+    });
     
     const agent = await this.agentRepository.findOne({
       where: { agentId },
     });
 
     if (!agent) {
+      console.error(`[AgentService] Агент с agentId=${agentId} не найден в БД`);
       throw new NotFoundException('Агент не найден');
     }
 
-    // Обновляем версию 1С: если передано null или пустая строка, очищаем
-    agent.lastOneCVersion = updateStatusDto.lastOneCVersion || null;
-    agent.oneCArchitecture = updateStatusDto.oneCArchitecture || null;
+    console.log(`[AgentService] Агент найден: PcId=${agent.pcId}, текущая версия 1С: ${agent.lastOneCVersion || 'null'}, архитектура: ${agent.oneCArchitecture || 'null'}`);
+
+    // Обновляем версию 1С: если передано null, undefined или пустая строка, очищаем
+    // Но сохраняем значение, если оно передано (даже если это пустая строка, это означает, что 1С не найдена)
+    if (updateStatusDto.lastOneCVersion !== undefined) {
+      agent.lastOneCVersion = updateStatusDto.lastOneCVersion || null;
+    }
+    if (updateStatusDto.oneCArchitecture !== undefined) {
+      agent.oneCArchitecture = updateStatusDto.oneCArchitecture || null;
+    }
     agent.lastHeartbeat = new Date();
 
-    await this.agentRepository.save(agent);
-    console.log(`[AgentService] Статус агента обновлен: ${agentId}, Version: ${agent.lastOneCVersion || 'null'}, Arch: ${agent.oneCArchitecture || 'null'}`);
+    const savedAgent = await this.agentRepository.save(agent);
+    console.log(`[AgentService] Статус агента обновлен и сохранен:`, {
+      agentId,
+      pcId: savedAgent.pcId,
+      lastOneCVersion: savedAgent.lastOneCVersion || 'null',
+      oneCArchitecture: savedAgent.oneCArchitecture || 'null',
+      lastHeartbeat: savedAgent.lastHeartbeat,
+    });
 
-    // Обновляем статус ПК с версией 1С (передаем null, если версия не найдена)
+    // Обновляем статус ПК с версией 1С
     await this.pcsService.updateStatus(
       agent.pcId,
       true,
-      updateStatusDto.lastOneCVersion || null, // null если 1С не найдена
-      updateStatusDto.oneCArchitecture || null,
+      savedAgent.lastOneCVersion || null,
+      savedAgent.oneCArchitecture || null,
     );
-    console.log(`[AgentService] Статус ПК обновлен: PcId=${agent.pcId}, Version=${updateStatusDto.lastOneCVersion || 'null'}, Arch=${updateStatusDto.oneCArchitecture || 'null'}`);
+    console.log(`[AgentService] Статус ПК обновлен: PcId=${agent.pcId}, Version=${savedAgent.lastOneCVersion || 'null'}, Arch=${savedAgent.oneCArchitecture || 'null'}`);
   }
 
   async getPendingTasks(agentId: string) {
+    console.log(`[AgentService] getPendingTasks вызван для agentId: ${agentId}`);
+    
     const agent = await this.agentRepository.findOne({
       where: { agentId },
     });
 
     if (!agent) {
-      throw new NotFoundException('Агент не найден');
+      // Проверяем, есть ли вообще агенты в БД
+      const allAgents = await this.agentRepository.find();
+      console.log(`[AgentService] Агент с agentId=${agentId} не найден. Всего агентов в БД: ${allAgents.length}`);
+      if (allAgents.length > 0) {
+        console.log(`[AgentService] Существующие agentId:`, allAgents.map(a => a.agentId));
+      }
+      
+      // Возвращаем пустой список задач вместо ошибки, чтобы агент мог продолжить работу
+      // и зарегистрироваться при следующем heartbeat
+      console.log(`[AgentService] Возвращаем пустой список задач для незарегистрированного агента`);
+      return [];
     }
+    
+    console.log(`[AgentService] Агент найден: PcId=${agent.pcId}, AgentId=${agent.agentId}, isActive=${agent.isActive}`);
 
     return this.tasksService.getPendingTasksForPc(agent.pcId);
   }
@@ -149,13 +189,20 @@ export class AgentService {
     status: TaskPcStatus,
     errorMessage?: string,
   ): Promise<void> {
+    console.log(`[AgentService] reportTaskProgress: agentId=${agentId}, taskId=${taskId}, status=${status}`);
+    
     const agent = await this.agentRepository.findOne({
       where: { agentId },
     });
 
     if (!agent) {
-      throw new NotFoundException('Агент не найден');
+      console.warn(`[AgentService] Агент с agentId=${agentId} не найден при попытке обновить статус задачи ${taskId}`);
+      // Не выбрасываем ошибку, чтобы агент мог продолжить работу
+      // Агент зарегистрируется при следующем heartbeat
+      return;
     }
+    
+    console.log(`[AgentService] Агент найден: PcId=${agent.pcId}, обновление статуса задачи ${taskId}`);
 
     await this.tasksService.updateTaskPcStatus(
       taskId,
@@ -491,51 +538,168 @@ Write-Log "Лог установки сохранен в: $logFile" "INFO"
     const projectRoot = path.resolve(__dirname, '../../..');
     const agentPath = path.join(projectRoot, 'agent');
     
-    // Сначала проверяем self-contained версию (предпочтительно)
-    const selfContainedPath = path.join(agentPath, 'bin', 'Release', 'net8.0', 'win-x64', 'publish', '1CUpdaterAgent.exe');
-    if (fs.existsSync(selfContainedPath)) {
-      return selfContainedPath;
+    console.log(`[AgentService] Поиск exe агента. projectRoot: ${projectRoot}`);
+    
+    // Сначала проверяем self-contained версию (предпочтительно) для net8.0-windows
+    const selfContainedPath1 = path.join(agentPath, 'bin', 'Release', 'net8.0-windows', 'win-x64', 'publish', '1CUpdaterAgent.exe');
+    if (fs.existsSync(selfContainedPath1)) {
+      console.log(`[AgentService] Найден агент: ${selfContainedPath1}`);
+      return selfContainedPath1;
     }
     
-    // Проверяем обычную Release версию
-    const releasePath = path.join(agentPath, 'bin', 'Release', 'net8.0', '1CUpdaterAgent.exe');
-    if (fs.existsSync(releasePath)) {
-      return releasePath;
+    // Проверяем self-contained версию для net8.0 (старый путь)
+    const selfContainedPath2 = path.join(agentPath, 'bin', 'Release', 'net8.0', 'win-x64', 'publish', '1CUpdaterAgent.exe');
+    if (fs.existsSync(selfContainedPath2)) {
+      console.log(`[AgentService] Найден агент: ${selfContainedPath2}`);
+      return selfContainedPath2;
+    }
+    
+    // Проверяем обычную Release версию для net8.0-windows
+    const releasePath1 = path.join(agentPath, 'bin', 'Release', 'net8.0-windows', '1CUpdaterAgent.exe');
+    if (fs.existsSync(releasePath1)) {
+      console.log(`[AgentService] Найден агент: ${releasePath1}`);
+      return releasePath1;
+    }
+    
+    // Проверяем обычную Release версию для net8.0 (старый путь)
+    const releasePath2 = path.join(agentPath, 'bin', 'Release', 'net8.0', '1CUpdaterAgent.exe');
+    if (fs.existsSync(releasePath2)) {
+      console.log(`[AgentService] Найден агент: ${releasePath2}`);
+      return releasePath2;
     }
     
     // Проверяем Debug версию
-    const debugPath = path.join(agentPath, 'bin', 'Debug', 'net8.0', '1CUpdaterAgent.exe');
+    const debugPath = path.join(agentPath, 'bin', 'Debug', 'net8.0-windows', '1CUpdaterAgent.exe');
     if (fs.existsSync(debugPath)) {
+      console.log(`[AgentService] Найден агент: ${debugPath}`);
       return debugPath;
     }
+    
+    console.log(`[AgentService] Агент не найден. Проверенные пути:`);
+    console.log(`  - ${selfContainedPath1}`);
+    console.log(`  - ${selfContainedPath2}`);
+    console.log(`  - ${releasePath1}`);
+    console.log(`  - ${releasePath2}`);
+    console.log(`  - ${debugPath}`);
     
     return null;
   }
 
   async getInstallerPath(): Promise<string | null> {
-    // Определяем путь к проекту (на уровень выше от backend)
-    const projectRoot = path.resolve(__dirname, '../../..');
+    // Определяем путь к проекту более надежным способом
+    // Ищем корень проекта по наличию папки 'installer'
+    let currentDir = __dirname;
+    let projectRoot: string | null = null;
+    
+    // Поднимаемся вверх по директориям, пока не найдем папку 'installer'
+    for (let i = 0; i < 5; i++) {
+      const installerDir = path.join(currentDir, 'installer');
+      if (fs.existsSync(installerDir) && fs.statSync(installerDir).isDirectory()) {
+        projectRoot = currentDir;
+        break;
+      }
+      currentDir = path.resolve(currentDir, '..');
+    }
+    
+    // Если не нашли через поиск, используем стандартный путь
+    if (!projectRoot) {
+      // В development: __dirname = backend/src/agent -> ../../.. = корень проекта
+      // В production: __dirname = backend/dist/agent -> ../../.. = корень проекта
+      projectRoot = path.resolve(__dirname, '../../..');
+    }
+    
     const installerPath = path.join(projectRoot, 'installer');
     
-    // Сначала проверяем self-contained версию (предпочтительно)
-    const selfContainedPath = path.join(installerPath, 'bin', 'Release', 'net8.0-windows', 'win-x64', 'publish', '1CUpdaterAgentInstaller.exe');
-    if (fs.existsSync(selfContainedPath)) {
-      return selfContainedPath;
+    console.log(`[AgentService] Поиск установщика. __dirname: ${__dirname}, projectRoot: ${projectRoot}`);
+    
+    // Сначала проверяем self-contained версию с версией в имени (предпочтительно)
+    // Ищем файлы вида 1CUpdaterAgentInstaller-v*.exe
+    try {
+      const publishDir = path.join(installerPath, 'bin', 'Release', 'net8.0-windows', 'win-x64', 'publish');
+      console.log(`[AgentService] Проверка директории: ${publishDir}`);
+      if (fs.existsSync(publishDir)) {
+        const files = fs.readdirSync(publishDir);
+        console.log(`[AgentService] Найдено файлов в директории: ${files.length}`);
+        console.log(`[AgentService] Файлы: ${files.join(', ')}`);
+        
+        const versionedFiles = files
+          .filter(f => f.startsWith('1CUpdaterAgentInstaller-v') && f.endsWith('.exe'))
+          .sort()
+          .reverse(); // Сортируем по убыванию, чтобы взять самую новую версию
+        
+        console.log(`[AgentService] Версионированные файлы найдены: ${versionedFiles.length}`);
+        if (versionedFiles.length > 0) {
+          console.log(`[AgentService] Версионированные файлы: ${versionedFiles.join(', ')}`);
+          const latestVersionedFile = path.join(publishDir, versionedFiles[0]);
+          
+          // Дополнительная проверка существования файла
+          if (fs.existsSync(latestVersionedFile)) {
+            const stats = fs.statSync(latestVersionedFile);
+            const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+            console.log(`[AgentService] ✅ Найден установщик с версией: ${latestVersionedFile} (${sizeMB} МБ)`);
+            console.log(`[AgentService] Имя файла для скачивания: ${versionedFiles[0]}`);
+            return latestVersionedFile;
+          } else {
+            console.log(`[AgentService] ⚠️ Версионированный файл не существует: ${latestVersionedFile}`);
+          }
+        } else {
+          console.log(`[AgentService] ⚠️ Версионированные файлы не найдены в ${publishDir}`);
+          // Дополнительная проверка: ищем все файлы с паттерном вручную
+          const allExeFiles = files.filter(f => f.endsWith('.exe') && f.includes('1CUpdaterAgentInstaller'));
+          console.log(`[AgentService] Все найденные exe файлы: ${allExeFiles.join(', ')}`);
+        }
+      } else {
+        console.log(`[AgentService] ⚠️ Директория не существует: ${publishDir}`);
+      }
+    } catch (error) {
+      console.warn(`[AgentService] Ошибка поиска версионированного установщика: ${error}`);
     }
     
-    // Проверяем обычную Release версию
-    const releasePath = path.join(installerPath, 'bin', 'Release', 'net8.0-windows', '1CUpdaterAgentInstaller.exe');
-    if (fs.existsSync(releasePath)) {
-      return releasePath;
+    // Fallback: проверяем версионированный файл явно (если предыдущая проверка не сработала)
+    const publishDir = path.join(installerPath, 'bin', 'Release', 'net8.0-windows', 'win-x64', 'publish');
+    if (fs.existsSync(publishDir)) {
+      try {
+        const allFiles = fs.readdirSync(publishDir);
+        console.log(`[AgentService] Повторная проверка. Всего файлов: ${allFiles.length}`);
+        console.log(`[AgentService] Все exe файлы: ${allFiles.filter(f => f.endsWith('.exe')).join(', ')}`);
+        
+        const versionedFiles = allFiles
+          .filter(f => f.startsWith('1CUpdaterAgentInstaller-v') && f.endsWith('.exe'))
+          .map(f => ({ name: f, path: path.join(publishDir, f) }))
+          .filter(f => {
+            const exists = fs.existsSync(f.path);
+            console.log(`[AgentService] Проверка файла: ${f.name} - существует: ${exists}`);
+            return exists;
+          })
+          .sort((a, b) => {
+            // Извлекаем версию из имени файла для правильной сортировки
+            const versionA = a.name.match(/v(\d+\.\d+\.\d+)/)?.[1] || '';
+            const versionB = b.name.match(/v(\d+\.\d+\.\d+)/)?.[1] || '';
+            return versionB.localeCompare(versionA, undefined, { numeric: true, sensitivity: 'base' });
+          });
+        
+        console.log(`[AgentService] Версионированные файлы после повторной проверки: ${versionedFiles.length}`);
+        if (versionedFiles.length > 0) {
+          const latest = versionedFiles[0];
+          const stats = fs.statSync(latest.path);
+          const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
+          console.log(`[AgentService] ✅ Принудительно найден версионированный установщик: ${latest.path} (${sizeMB} МБ)`);
+          console.log(`[AgentService] Имя файла: ${latest.name}`);
+          return latest.path;
+        }
+      } catch (error) {
+        console.error(`[AgentService] Ошибка при принудительной проверке версионированного файла: ${error}`);
+      }
     }
     
-    // Проверяем Debug версию
-    const debugPath = path.join(installerPath, 'bin', 'Debug', 'net8.0-windows', '1CUpdaterAgentInstaller.exe');
-    if (fs.existsSync(debugPath)) {
-      return debugPath;
-    }
+    // НЕ возвращаем файлы без версии - это критическая ошибка!
+    console.error(`[AgentService] ❌ КРИТИЧЕСКАЯ ОШИБКА: Версионированный установщик не найден!`);
+    console.error(`[AgentService] Проверьте, что файл 1CUpdaterAgentInstaller-v*.exe собран и находится в ${publishDir}`);
     
-    return null;
+    // ВАЖНО: Не возвращаем файл без версии, это ошибка конфигурации
+    console.error(`[AgentService] Проверенные директории:`);
+    console.error(`  - ${publishDir} (существует: ${fs.existsSync(publishDir)})`);
+    throw new Error('Версионированный установщик не найден. Убедитесь, что проект собран с версией в имени файла.');
   }
 
   async deleteAgent(agentId: string): Promise<void> {

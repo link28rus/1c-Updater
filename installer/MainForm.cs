@@ -33,9 +33,45 @@ namespace OneCUpdaterAgentInstaller
             UpdateInstallButtonState();
         }
 
+        private string GetApplicationVersion()
+        {
+            try
+            {
+                var version = Assembly.GetExecutingAssembly().GetName().Version;
+                if (version != null)
+                {
+                    return $"{version.Major}.{version.Minor}.{version.Build}";
+                }
+            }
+            catch { }
+            
+            // Fallback: пытаемся прочитать из файла version.txt
+            try
+            {
+                string? installerDir = Path.GetDirectoryName(Application.ExecutablePath);
+                if (!string.IsNullOrEmpty(installerDir))
+                {
+                    string versionFile = Path.Combine(installerDir, "version.txt");
+                    if (File.Exists(versionFile))
+                    {
+                        string versionText = File.ReadAllText(versionFile).Trim();
+                        if (!string.IsNullOrEmpty(versionText))
+                        {
+                            return versionText;
+                        }
+                    }
+                }
+            }
+            catch { }
+            
+            return "1.0.0"; // Значение по умолчанию
+        }
+
         private void InitializeComponent()
         {
-            this.Text = "Установщик 1C Updater Agent";
+            // Получаем версию из сборки
+            string appVer = GetApplicationVersion();
+            this.Text = $"Установщик 1C Updater Agent v{appVer}";
             this.Size = new System.Drawing.Size(600, 580);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -48,10 +84,11 @@ namespace OneCUpdaterAgentInstaller
             // Временный путь, будет обновлен при установке
             logFilePath = Path.Combine(installerPath ?? Environment.CurrentDirectory, $"{installerName}-Install-{DateTime.Now:yyyyMMdd-HHmmss}.log");
 
-            // Заголовок
+            // Заголовок с версией
+            string titleVersion = GetApplicationVersion();
             var lblTitle = new Label
             {
-                Text = "Установка 1C Updater Agent",
+                Text = $"Установка 1C Updater Agent v{titleVersion}",
                 Font = new System.Drawing.Font("Segoe UI", 14, System.Drawing.FontStyle.Bold),
                 Location = new System.Drawing.Point(20, 20),
                 Size = new System.Drawing.Size(550, 30),

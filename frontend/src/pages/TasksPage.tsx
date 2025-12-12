@@ -25,6 +25,8 @@ import {
   FormControlLabel,
   FormGroup,
   Typography,
+  Alert,
+  Divider,
 } from '@mui/material'
 import { Add as AddIcon, Delete as DeleteIcon } from '@mui/icons-material'
 import { tasksService, distributionsService, pcsService, groupsService } from '../services/api'
@@ -34,6 +36,8 @@ import { Task } from '../types'
 export function TasksPage() {
   const [open, setOpen] = useState(false)
   const [selectedPcs, setSelectedPcs] = useState<number[]>([])
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const queryClient = useQueryClient()
 
   const { data: tasks } = useQuery({
@@ -54,6 +58,12 @@ export function TasksPage() {
   const { data: groups } = useQuery({
     queryKey: ['groups'],
     queryFn: () => groupsService.getAll().then((res) => res.data),
+  })
+
+  const { data: taskStatuses } = useQuery({
+    queryKey: ['task-statuses', selectedTask?.id],
+    queryFn: () => tasksService.getStatus(selectedTask!.id).then((res) => res.data),
+    enabled: !!selectedTask && detailsOpen,
   })
 
   const { register, handleSubmit, reset, control, formState: { errors } } = useForm({
@@ -184,7 +194,14 @@ export function TasksPage() {
           </TableHead>
           <TableBody>
             {tasks?.map((task: Task) => (
-              <TableRow key={task.id}>
+              <TableRow 
+                key={task.id}
+                sx={{ cursor: 'pointer' }}
+                onClick={() => {
+                  setSelectedTask(task)
+                  setDetailsOpen(true)
+                }}
+              >
                 <TableCell>{task.name}</TableCell>
                 <TableCell>{task.distribution?.filename || 'N/A'}</TableCell>
                 <TableCell>
@@ -203,7 +220,7 @@ export function TasksPage() {
                 <TableCell>
                   {new Date(task.createdAt).toLocaleDateString('ru-RU')}
                 </TableCell>
-                <TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
                   <IconButton
                     size="small"
                     onClick={() => deleteMutation.mutate(task.id)}
@@ -319,6 +336,85 @@ export function TasksPage() {
             </Button>
           </DialogActions>
         </form>
+      </Dialog>
+
+      {/* Диалог с деталями задачи */}
+      <Dialog open={detailsOpen} onClose={() => setDetailsOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>
+          Детали задачи: {selectedTask?.name}
+        </DialogTitle>
+        <DialogContent>
+          {selectedTask && (
+            <Box>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Статус: <Chip label={selectedTask.status} color={getStatusColor(selectedTask.status) as any} size="small" />
+              </Typography>
+              {selectedTask.description && (
+                <Typography variant="body2" color="text.secondary" gutterBottom>
+                  Описание: {selectedTask.description}
+                </Typography>
+              )}
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Дистрибутив: {selectedTask.distribution?.filename || 'N/A'}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                Дата создания: {new Date(selectedTask.createdAt).toLocaleString('ru-RU')}
+              </Typography>
+              
+              <Divider sx={{ my: 2 }} />
+              
+              <Typography variant="h6" gutterBottom>
+                Статус выполнения по ПК:
+              </Typography>
+              
+              {taskStatuses && taskStatuses.length > 0 ? (
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>ПК</TableCell>
+                        <TableCell>Статус</TableCell>
+                        <TableCell>Ошибка</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {taskStatuses.map((taskPc: any) => (
+                        <TableRow key={taskPc.id}>
+                          <TableCell>{taskPc.pc?.name || `ПК #${taskPc.pcId}`}</TableCell>
+                          <TableCell>
+                            <Chip
+                              label={taskPc.status}
+                              color={getStatusColor(taskPc.status) as any}
+                              size="small"
+                            />
+                          </TableCell>
+                          <TableCell>
+                            {taskPc.errorMessage ? (
+                              <Alert severity="error" sx={{ py: 0 }}>
+                                {taskPc.errorMessage}
+                              </Alert>
+                            ) : (
+                              <Typography variant="body2" color="text.secondary">
+                                Нет ошибок
+                              </Typography>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  Загрузка статусов...
+                </Typography>
+              )}
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDetailsOpen(false)}>Закрыть</Button>
+        </DialogActions>
       </Dialog>
     </Box>
   )

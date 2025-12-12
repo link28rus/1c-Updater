@@ -1,10 +1,18 @@
 using System.Management;
 using System.IO;
+using Microsoft.Extensions.Logging;
 
 namespace OneCUpdaterAgent
 {
     public class WmiHelper
     {
+        private readonly ILogger<WmiHelper>? _logger;
+
+        public WmiHelper(ILogger<WmiHelper>? logger = null)
+        {
+            _logger = logger;
+        }
+
         public bool IsPcOnline()
         {
             // Проверка доступности ПК через WMI
@@ -26,12 +34,37 @@ namespace OneCUpdaterAgent
         {
             try
             {
-                _oneCDetector ??= new OneCDetector();
-                var installation = _oneCDetector.GetLatestInstallation();
-                
-                if (installation != null)
+                // Логируем начало вызова
+                try
                 {
-                    var message = $"✅ 1С найдена: Version={installation.Version}, Path={installation.Path}, Edition={installation.Edition}";
+                    using (var eventLog = new System.Diagnostics.EventLog("Application"))
+                    {
+                        eventLog.Source = "1CUpdaterAgent";
+                        eventLog.WriteEntry("[WmiHelper] GetOneCVersion called, calling GetLatest1CVersion()", System.Diagnostics.EventLogEntryType.Information, 5002);
+                    }
+                }
+                catch { }
+                
+                // Используем новый метод, который ищет в стандартных путях Uninstall реестра
+                var latestVersion = OneCDetector.GetLatest1CVersion(_logger);
+                
+                // Логируем результат
+                try
+                {
+                    using (var eventLog = new System.Diagnostics.EventLog("Application"))
+                    {
+                        eventLog.Source = "1CUpdaterAgent";
+                        var resultMsg = latestVersion != null 
+                            ? $"[WmiHelper] GetLatest1CVersion returned: {latestVersion}" 
+                            : "[WmiHelper] GetLatest1CVersion returned: null";
+                        eventLog.WriteEntry(resultMsg, System.Diagnostics.EventLogEntryType.Information, 5003);
+                    }
+                }
+                catch { }
+                
+                if (latestVersion != null)
+                {
+                    var message = $"✅ 1С найдена: Version={latestVersion}";
                     System.Diagnostics.Debug.WriteLine(message);
                     
                     try
@@ -44,7 +77,7 @@ namespace OneCUpdaterAgent
                     }
                     catch { }
                     
-                    return installation.Version;
+                    return latestVersion;
                 }
                 else
                 {

@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { Server, Socket } from 'socket.io';
+import { Server, Socket, Namespace } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 
 interface AuthenticatedSocket extends Socket {
@@ -39,7 +39,7 @@ export class EventsGateway implements OnModuleInit, OnModuleDestroy {
     this.logger.log('WebSocket сервер настроен для namespace /events');
   }
 
-  private async handleConnection(client: Socket, namespace: Server) {
+  private async handleConnection(client: Socket, namespace: Namespace) {
     const authClient = client as AuthenticatedSocket;
     try {
       // Проверяем JWT токен из query параметра или auth

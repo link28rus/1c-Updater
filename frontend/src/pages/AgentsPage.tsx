@@ -143,12 +143,32 @@ export function AgentsPage() {
     try {
       const response = await agentsService.downloadInstaller()
       
+      // Извлекаем имя файла из заголовка Content-Disposition
+      let fileName = '1CUpdaterAgentInstaller.exe' // значение по умолчанию
+      const contentDisposition = response.headers['content-disposition'] || response.headers['Content-Disposition']
+      if (contentDisposition) {
+        // Парсим заголовок Content-Disposition
+        // Формат: attachment; filename="1CUpdaterAgentInstaller-v1.0.0.exe"; filename*=UTF-8''1CUpdaterAgentInstaller-v1.0.0.exe
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/)
+        if (filenameMatch && filenameMatch[1]) {
+          // Убираем кавычки если есть
+          fileName = filenameMatch[1].replace(/['"]/g, '')
+          // Если есть filename*=UTF-8'', используем его (более приоритетный)
+          const utf8Match = contentDisposition.match(/filename\*=UTF-8''([^;\n]+)/)
+          if (utf8Match && utf8Match[1]) {
+            fileName = decodeURIComponent(utf8Match[1])
+          }
+        }
+      }
+      
+      console.log(`[AgentsPage] Имя файла из заголовка: ${fileName}`)
+      
       // Создаем blob и скачиваем файл
       const blob = new Blob([response.data], { type: 'application/octet-stream' })
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
-      link.download = '1CUpdaterAgentInstaller.exe'
+      link.download = fileName // Используем имя из заголовка
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)

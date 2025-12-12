@@ -10,6 +10,13 @@ namespace OneCUpdaterAgent
     {
         public static void Main(string[] args)
         {
+            // Тестовый режим: если передан аргумент "test", запускаем тест детектора
+            if (args.Length > 0 && args[0].Equals("test", StringComparison.OrdinalIgnoreCase))
+            {
+                TestOneCDetector.RunTest();
+                return;
+            }
+
             // Создаем источник событий, если его нет
             try
             {
@@ -160,7 +167,11 @@ namespace OneCUpdaterAgent
                     services.AddSingleton<Config>(provider => config);
                     
                     services.AddSingleton<ApiClient>();
-                    services.AddSingleton<WmiHelper>();
+                    services.AddSingleton<WmiHelper>(provider => 
+                    {
+                        var logger = provider.GetService<ILogger<WmiHelper>>();
+                        return new WmiHelper(logger);
+                    });
                     services.AddSingleton<OneCInstaller>();
                     services.AddHostedService<AgentService>();
 

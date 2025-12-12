@@ -1,0 +1,7 @@
+D:\Project\1CUpdater\1c-Updater\installer\bin\Release\net8.0-windows\win-x64\publish\1CUpdaterAgentInstaller.pdb
+D:\Project\1CUpdater\1c-Updater\installer\bin\Release\net8.0-windows\win-x64\publish\D3DCompiler_47_cor3.dll
+D:\Project\1CUpdater\1c-Updater\installer\bin\Release\net8.0-windows\win-x64\publish\PenImc_cor3.dll
+D:\Project\1CUpdater\1c-Updater\installer\bin\Release\net8.0-windows\win-x64\publish\PresentationNative_cor3.dll
+D:\Project\1CUpdater\1c-Updater\installer\bin\Release\net8.0-windows\win-x64\publish\vcruntime140_cor3.dll
+D:\Project\1CUpdater\1c-Updater\installer\bin\Release\net8.0-windows\win-x64\publish\wpfgfx_cor3.dll
+D:\Project\1CUpdater\1c-Updater\installer\bin\Release\net8.0-windows\win-x64\publish\1CUpdaterAgentInstaller.exe

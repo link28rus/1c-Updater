@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("1CUpdaterAgentInstaller")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Release")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+963d89e633791783a03c9c535bbe08e654825f26")]
 [assembly: System.Reflection.AssemblyProductAttribute("1CUpdaterAgentInstaller")]
 [assembly: System.Reflection.AssemblyTitleAttribute("1CUpdaterAgentInstaller")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

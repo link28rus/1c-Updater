@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "wbL2E2ve4gg=",
+  "dgSpecHash": "0be3aYFMLVE=",
   "success": true,
-  "projectFilePath": "D:\\Project\\1С-Updater\\installer\\1CUpdaterAgentInstaller.csproj",
+  "projectFilePath": "D:\\Project\\1CUpdater\\1c-Updater\\installer\\1CUpdaterAgentInstaller.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\link28rus\\.nuget\\packages\\microsoft.net.illink.tasks\\8.0.20\\microsoft.net.illink.tasks.8.0.20.nupkg.sha512",
     "C:\\Users\\link28rus\\.nuget\\packages\\system.codedom\\8.0.0\\system.codedom.8.0.0.nupkg.sha512",

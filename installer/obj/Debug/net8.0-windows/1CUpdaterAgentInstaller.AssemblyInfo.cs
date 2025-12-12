@@ -10,11 +10,12 @@
 using System;
 using System.Reflection;
 
-[assembly: System.Reflection.AssemblyCompanyAttribute("1CUpdaterAgentInstaller")]
+[assembly: System.Reflection.AssemblyCompanyAttribute("1C Updater")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
+[assembly: System.Reflection.AssemblyCopyrightAttribute("Copyright © 2025")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+75feb0853d2bfa48fbb55a962b06321dad8dbcba")]
-[assembly: System.Reflection.AssemblyProductAttribute("1CUpdaterAgentInstaller")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+963d89e633791783a03c9c535bbe08e654825f26")]
+[assembly: System.Reflection.AssemblyProductAttribute("1C Updater Agent Installer")]
 [assembly: System.Reflection.AssemblyTitleAttribute("1CUpdaterAgentInstaller")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
 [assembly: System.Runtime.Versioning.TargetPlatformAttribute("Windows7.0")]

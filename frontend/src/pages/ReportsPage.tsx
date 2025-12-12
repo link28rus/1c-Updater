@@ -37,10 +37,10 @@ export function ReportsPage() {
     queryFn: () => reportsService.getTaskHistory(20).then((res) => res.data),
   })
 
-  const { data: distStats, isLoading: distStatsLoading } = useQuery({
-    queryKey: ['reports', 'distributions'],
-    queryFn: () => reportsService.getDistributionStatistics().then((res) => res.data),
-  })
+  // const { data: distStats, isLoading: distStatsLoading } = useQuery({
+  //   queryKey: ['reports', 'distributions'],
+  //   queryFn: () => reportsService.getDistributionStatistics().then((res) => res.data),
+  // })
 
   const getStatusColor = (status: string) => {
     switch (status) {
